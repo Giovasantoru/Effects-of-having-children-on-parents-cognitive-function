@@ -1,0 +1,78 @@
+---
+title: "Easy prova"
+author: "Giovanni Santoru"
+date: "2024-02-09"
+output: html_document
+---
+
+```{r}
+#Installing libraries
+
+
+install.packages("dplyr")
+library(dplyr)
+install.packages("readr")
+library(readr)
+install.packages(dagitty)
+library(dagitty)
+```
+
+
+```{r}
+dag {
+bb="0,0,1,1"
+Born_abroad [pos="0.763,0.201"]
+age [pos="0.700,0.476"]
+age_2ndchild [pos="0.819,0.321"]
+avg_contact [pos="0.817,0.760"]
+combined_index [outcome,pos="0.109,0.374"]
+cubage [pos="0.447,0.466"]
+depression [pos="0.334,0.588"]
+educ [pos="0.564,0.482"]
+gender [pos="0.868,0.536"]
+hearing [pos="0.475,0.689"]
+hnetw [pos="0.650,0.595"]
+inactivity [pos="0.657,0.750"]
+morethan_children [exposure,pos="0.214,0.049"]
+natural_children [pos="0.570,0.213"]
+number_children [pos="0.681,0.333"]
+reading [pos="0.452,0.575"]
+sleep [pos="0.548,0.341"]
+smoking [pos="0.578,0.787"]
+thinc [pos="0.758,0.592"]
+two_children_same_sex [pos="0.409,0.282"]
+morethan_children -> combined_index
+two_children_same_sex -> morethan_children
+}
+
+```
+
+```{r}
+install.packages(c("pcalg", "ggdag", "igraph", "Rgraphviz"))
+library(pcalg)
+library(ggdag) # Optional for tidy DAG visualization
+library(igraph)
+library(Rgraphviz)
+
+cor_matrix <- cor(Tot_dataset2_PC)  # Handling missing values by complete observation
+
+# Define the significance level for the conditional independence tests
+sig_level <- 0.05
+
+# Run the PC algorithm
+pc_fit <- pc(suffStat = list(C = cor_matrix, n = nrow(Tot_dataset2_final)),
+             indepTest = gaussCItest,
+             alpha = sig_level,
+             p = ncol(Tot_dataset2_final), # Number of variables
+             labels = colnames(Tot_dataset2_PC )) # Variable names
+
+
+```
+
+
+```{r}
+library(bnlearn)
+
+HC <- hc(Tot_dataset2_PC, score="aic")
+```
+

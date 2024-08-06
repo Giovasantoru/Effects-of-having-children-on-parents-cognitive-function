@@ -1,0 +1,324 @@
+---
+title: "New Dataset"
+author: "Giovanni Santoru"
+date: "2024-03-23"
+output: html_document
+---
+
+```{r}
+library(haven)
+CF_wave8 <- read_dta("C:/Users/gsant/OneDrive/Tesi/Dataset/sharew8_rel8-0-0_ALL_datasets_stata/sharew8_rel8-0-0_cf.dta")
+
+CF_wave8 <- CF_wave8 %>%
+  mutate(
+    delayed_recall = coalesce(cf113tot, cf114tot, cf115tot, cf116tot)
+  )
+
+CF_wave8 <- CF_wave8 %>%
+  mutate(
+    immediate_recall = coalesce(cf104tot, cf105tot, cf106tot, cf107tot))
+
+CF_wave8 <- CF_wave8 %>%
+select("mergeid", "verbal_fluency" = "cf010_", "delayed_recall",  "immediate_recall")
+
+
+```
+
+```{r}
+install.packages("purrr")
+library(purrr)
+library(tidyr)
+
+CH_wave8 <- read_dta("C:/Users/gsant/OneDrive/Tesi/Dataset/sharew8_rel8-0-0_ALL_datasets_stata/sharew8_rel8-0-0_ch.dta")
+
+
+CH_wave8 <- CH_wave8 %>%
+mutate(sum_ch014 = rowSums(select(., starts_with("ch014_")), na.rm = TRUE)) %>%
+mutate(avg_contact = sum_ch014 / 12) %>%
+select("mergeid", "coupleid1" = "coupleid8", "number_children" = "ch001_", "natural_children"="ch302_", "child1.sex" = "ch005_1", "child2.sex" = "ch005_2", "child1.ybirth" = "ch006_1", "child2.ybirth" = "ch006_2", "sum_ch014", "avg_contact") 
+  
+
+
+year_cols <- paste0("ch006_", 1:20)
+gender_cols <- paste0("ch005_", 1:20)
+
+# Define the sorting function
+sort_years_and_align_genders <- function(years, genders) {
+  combined <- data.frame(year = years, gender = genders, stringsAsFactors = FALSE)
+  combined <- combined[order(combined$year, na.last = TRUE), ]
+  
+  sorted_years <- combined$year
+  sorted_genders <- combined$gender
+  list(years = sorted_years, genders = sorted_genders)
+}
+
+sharew8_rel8_0_0_ch <- read_dta("C:/Users/gsant/OneDrive/Tesi/Dataset/sharew8_rel8-0-0_ALL_datasets_stata/sharew8_rel8-0-0_ch.dta")
+
+share8ch <- sharew8_rel8_0_0_ch %>%
+  rowwise() %>%
+  mutate(
+    sorted_info = list(sort_years_and_align_genders(unlist(across(all_of(year_cols))),
+                                                    unlist(across(all_of(gender_cols)))))
+  ) %>%
+  ungroup()
+
+
+for (i in seq_along(year_cols)) {
+  share8ch[[year_cols[i]]] <- map_dbl(share8ch$sorted_info, pluck, "years", i)
+  share8ch[[gender_cols[i]]] <- map_dbl(share8ch$sorted_info, pluck, "genders", i)
+}
+
+share8ch <- share8ch %>%
+  mutate(
+    across(all_of(year_cols), ~replace_na(., NA_integer_)),
+    across(all_of(gender_cols), ~replace_na(., NA_integer_))
+  )
+
+
+share8ch <- share8ch %>%
+  select(mergeid, child1.sex= ch005_1, child2.sex = ch005_2, child1.ybirth  = ch006_1, child2.ybirth = ch006_2)
+
+CH_wave8 <- CH_wave8 %>%
+  select(-child1.sex, -child2.sex, -child1.ybirth, -child2.ybirth, -sum_ch014)
+
+CH_wave8 <- CH_wave8 %>%
+  inner_join(share8ch, by="mergeid")
+  
+nrow(sharew8_rel8_0_0_ch)
+nrow(CH_wave8)
+```
+
+```{r}
+ReferencePartner <-
+CH_wave8 %>%
+  mutate(coupleid1 = ifelse(is.na(coupleid1), mergeid, coupleid1))
+
+ReferencePartner2 <- CH_wave8 %>%
+  filter(is.na(number_children)) 
+
+ChildrenW8x <- ReferencePartner2 %>%
+  full_join(ReferencePartner, by="coupleid1", suffix = c("_01", "_02"))
+
+df_filled1 <- ChildrenW8x %>%
+  mutate(
+    number_children = coalesce(number_children_01, number_children_02),
+    natural_children = coalesce(natural_children_01, natural_children_02),
+    child1.sex = coalesce(child1.sex_01, child1.sex_02),
+    child2.sex = coalesce(child2.sex_01, child2.sex_02),
+    child1.ybirth = coalesce(child1.ybirth_01, child1.ybirth_02),
+    child2.ybirth = coalesce(child2.ybirth_01, child2.ybirth_02)
+  )
+
+
+df_final1 <- df_filled1 %>%
+  select(
+    mergeid_01, mergeid_02,
+    coupleid1, 
+    number_children, 
+    natural_children,
+    child1.sex, 
+    child2.sex, 
+    child1.ybirth,
+    child2.ybirth
+  )
+
+long_df1 <- df_final1 %>%
+  gather(key = "mergeid_type", value = "mergeid", mergeid_01, mergeid_02) %>%
+  filter(!is.na(mergeid)) %>%
+  select(mergeid, coupleid1, number_children, natural_children, child1.sex, child2.sex, child1.ybirth, child2.ybirth)
+
+ChildrenW8 <- long_df1 %>%
+  distinct(mergeid, .keep_all = TRUE) %>%
+  arrange(mergeid)
+
+nrow(sharew8_rel8_0_0_ch)
+nrow(ChildrenW8)
+nrow(CH_wave8)
+```
+
+
+```{r}
+datas3 <- CH_wave8 %>%
+  select(mergeid, coupleid8, starts_with("ch_contact"))
+```
+
+
+```{r}
+CV_wave8 <- read_dta("C:/Users/gsant/OneDrive/Tesi/Dataset/sharew8_rel8-0-0_ALL_datasets_stata/sharew8_rel8-0-0_cv_r.dta")
+CV_wave8 <- CV_wave8 %>% 
+  mutate(wave_id = 8)
+CV_wave8 <- CV_wave8 %>%
+select("mergeid", "country", "wave_id", "gender", "age_in" ="age2020", "mobirth", "yrbirth")
+
+```
+
+```{r}
+educ8 <- sharew8_rel8_0_0_gv_isced <- read_dta("C:/Users/gsant/OneDrive/Tesi/Dataset/sharew8_rel8-0-0_ALL_datasets_stata/sharew8_rel8-0-0_gv_isced.dta")
+
+
+```
+
+```{r}
+write.csv(Tot_dataset2,"C:/Users/gsant/OneDrive - Università degli Studi di Sassari/Desktop/Dataset/Tot_dataset2.csv")
+
+write.csv(Tot_dataset2_final,"C:/Users/gsant/OneDrive - Università degli Studi di Sassari/Desktop/Dataset/Tot_dataset2_final.csv")
+
+```
+
+```{r}
+Tot_wave8 <- CF_wave8 %>%
+  full_join(CV_wave8, by="mergeid") %>%
+  full_join(ChildrenW8, by="mergeid") %>%
+  left_join(educ8, by="mergeid") %>%
+  left_join(FNRES_wave8, by="mergeid")
+```
+
+```{r}
+Tot_wave6 <- CF_wave6 %>%
+  full_join(CV_wave6, by="mergeid") %>%
+  full_join(ChildrenW6, by="mergeid") %>%
+  left_join(educ6, by="mergeid") %>%
+  left_join(FNRES_wave6, by="mergeid")
+```
+
+```{r}
+Tot_wave5 <- CF_wave5 %>%
+  full_join(CV_wave5, by="mergeid") %>%
+  full_join(ChildrenW5, by="mergeid") %>%
+  left_join(educ5, by="mergeid") %>%
+  left_join(FNRES_wave5, by="mergeid")
+```
+
+```{r}
+Tot_wave4 <- CF_wave4 %>%
+  full_join(CV_wave4, by="mergeid") %>%
+  full_join(ChildrenW4, by="mergeid") %>%
+  left_join(educ4, by="mergeid") %>%
+  left_join(FNRES_wave4, by="mergeid")
+```
+
+```{r}
+Tot_wave2 <- CF_wave2 %>%
+  full_join(CV_wave2, by="mergeid") %>%
+  full_join(ChildrenW2, by="mergeid") %>%
+  left_join(educ2, by="mergeid") %>%
+  left_join(FNRES_wave2, by="mergeid")
+```
+
+```{r}
+Tot_wave1 <- CF_wave1 %>%
+  full_join(CV_wave1, by="mergeid") %>%
+  full_join(ChildrenW1, by="mergeid") %>%
+  left_join(educ1, by="mergeid") %>%
+  left_join(FNRES_wave1, by="mergeid")
+```
+
+
+
+```{r}
+Tot_dataset_final <- bind_rows(Tot_wave1, Tot_wave2, Tot_wave4, Tot_wave5, Tot_wave6, Tot_wave8)
+Tot_dataset_final <- Tot_dataset_final %>%
+  relocate(wave_id, number_children, natural_children, .after = mergeid)
+
+library(tidyr)
+
+  
+Easy_var <- easySHARE_rel8_0_0 %>%
+  select("mergeid", "wave_id" = "wave", "age", "gender" = "female", "Born_abroad" = "dn004_mod") %>%
+  mutate(gender = if_else(gender == 1, 0, 1)) %>%
+  mutate(Born_abroad = ifelse(Born_abroad == 5, 1, 0))
+  
+Tot_dataset1_final <- Tot_dataset_final %>%
+  select(-gender, -educ_level) %>%
+  inner_join(Easy_var, by=c("mergeid", "wave_id"))
+
+Tot_dataset1_final <- Tot_dataset1_final %>%
+group_by(mergeid) %>%
+  arrange(mergeid, wave_id) %>% # Ensure the data is ordered before filling
+  fill(number_children, .direction = "downup") %>%
+  fill(natural_children, .direction = "downup") %>%
+  fill(child1.sex, .direction = "downup") %>%
+  fill(child2.sex, .direction = "downup") %>%
+  fill(child1.ybirth, .direction = "downup") %>%
+  fill(child2.ybirth, .direction = "downup") %>%
+  fill(isced1997_r, .direction = "downup") %>%
+  ungroup()
+```
+```{r}
+Tot_dataset1x_final <- Tot_dataset1_final %>%
+  filter(country != 25 & country != 30) %>%
+  mutate(age = as.numeric(age)) %>%
+  filter(age >= 65.0) %>%
+  filter(natural_children == 1) %>%
+  filter(number_children >= 2) %>%
+  filter(
+    !is.na(delayed_recall) & delayed_recall >= 0 &
+    !is.na(immediate_recall) & immediate_recall >= 0 &
+    !is.na(verbal_fluency) & verbal_fluency >= 0
+  ) %>%
+  distinct(mergeid, wave_id, .keep_all = TRUE) %>%
+  mutate(morethan_children = as.integer(number_children > 2)) %>%
+  filter(child1.ybirth > 0 & child2.ybirth > 0) %>%
+  filter(yrbirth>0)
+```
+
+
+```{r}
+Tot_dataset1x_final <- Tot_dataset1x_final %>%
+  mutate(cubage = age^3) %>%
+  mutate(two_children_same_sex = as.integer(child1.sex == child2.sex)) %>%
+  mutate(age_2ndchild = child2.ybirth-yrbirth) %>%
+  mutate(age_1stchild = child1.ybirth-yrbirth)
+
+gender_bounds <- Tot_dataset1x_final %>%
+  group_by(gender) %>%
+  summarize(
+    lower_bound_1st = quantile(age_1stchild, probs = 0.005, na.rm = TRUE),
+    upper_bound_2nd = quantile(age_2ndchild, probs = 0.995, na.rm = TRUE)
+  )
+
+# Join this back to your dataset
+Tot_dataset2_final <- Tot_dataset1x_final %>%
+  left_join(gender_bounds, by = "gender") %>%
+  filter(
+    age_1stchild >= lower_bound_1st, 
+    age_2ndchild <= upper_bound_2nd)
+
+nrow(Tot_dataset2_final) 
+```
+```{r}
+Tot_dataset2_final <- Tot_dataset2_final %>%
+mutate(educ = case_when(
+    isced1997_r %in% c(0, 1, 95) ~ "Primary or less",
+    isced1997_r  %in% c(2, 3, 4) ~ "Secondary",
+    isced1997_r %in% c(5, 6) ~ "Tertiary education",
+    is.na(isced1997_r) ~ "Missing"))
+
+```
+
+```{r}
+Tot_dataset_relevant <- select(Tot_dataset2, delayed_recall, immediate_recall, verbal_fluency)
+pca_result <- prcomp(Tot_dataset_relevant, center = TRUE, scale. = TRUE)
+combined_index <- pca_result$x[, 1]
+
+
+tot_dataset_relevant <- Tot_dataset_relevant %>%
+  mutate(across(everything(), ~ifelse(is.na(.), mean(., na.rm = TRUE), .)))
+
+
+
+# Now combined_index_inverted contains the same values as combined_index but with inverted signs.
+
+Tot_dataset2 <- mutate(Tot_dataset2, combined_index = combined_index)
+```
+
+
+```{r}
+#MISSING VALUES
+
+Tot_dataset2 %>%
+  summarise(across(c(Born_abroad, gender, educ, age_2ndchild, child1.ybirth, age, verbal_fluency, delayed_recall, immediate_recall), ~sum(is.na(.))))
+```
+
+
+

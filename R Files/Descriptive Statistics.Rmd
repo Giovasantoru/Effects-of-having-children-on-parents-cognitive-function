@@ -1,0 +1,371 @@
+---
+title: "Descriptive Statistics"
+author: "Giovanni Santoru"
+date: "2024-03-20"
+output: html_document
+---
+
+```{r}
+library(ggplot2)
+library(haven)
+library(tidyr)
+library(stats)
+library(lmtest)
+library(sandwich)
+
+ggplot(data = Tot_dataset2_final, aes(x = age, y = combined_index)) +
+  geom_point(alpha = 0.6) +  # Plot points with slight transparency for better visualization
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +  # Add a linear regression line without the standard error shading
+  labs(title = "Relationship between Age and Cognitive Score",
+       x = "Age",
+       y = "Cognitive Score") +
+  theme_minimal() 
+ # Use a minimal theme for a cleaner look
+
+```
+
+```{r}
+library(ggplot2)
+
+# Assuming your data frame is named 'df' and has the variables 'age', 'combined_index', and 'morethan_children'.
+ggplot(data = Tot_dataset2, aes(x = age_in, y = combined_index, group = two_children_same_sex, color = factor(two_children_same_sex))) + # Plot the points with some transparency
+  geom_smooth(method = "lm", se = FALSE, aes(color = factor(two_children_same_sex))) +  # Add separate regression lines for each group
+  scale_color_manual(values = c("blue", "red"), labels = c("Assigned to treatment Z=1", "Z=0")) +  # Custom colors for each line
+  labs(title = "Age and Cognitive Score by Number of Children",
+       x = "Age",
+       y = "Cognitive Score",
+       color = "Number of Children") +  # Label for the legend
+  theme_minimal()  # Use a minimal theme
+   
+
+```
+
+```{r}
+ggplot(data = Tot_dataset2, aes(x = age, y = combined_index, group = two_children_same_sex, color = factor(two_children_same_sex))) + 
+  geom_smooth(method = "lm", se = FALSE, aes(color = factor(two_children_same_sex))) +  
+  scale_color_manual(values = c("blue", "red"), labels = c("Control Group", "Treated Group")) +
+  labs(title = "Age and Cognitive Score children sex composition",
+       x = "Age",
+       y = "Cognitive Score",
+       color = "Same Sex") +  # Label for the legend
+     theme_minimal() 
+     
+       
+```
+
+```{r}
+# Assuming your data frame is named 'df' and has the variables 'two_children_same_sex' and 'more_than_children'.
+
+# Create the contingency table
+contingency_table <- table(Tot_dataset2$two_children_same_sex, Tot_dataset2$morethan_children)
+
+# Print the table
+print(contingency_table)
+
+# If you want to add row and column names for clarity:
+colnames(contingency_table) <- c("2 Children", "More than 2 Children")
+rownames(contingency_table) <- c("Different Sex", "Same Sex")
+
+print(contingency_table)
+
+# Proportion table of the entire table
+prop_table <- prop.table(contingency_table)
+
+print(prop_table)
+
+# For row proportions
+row_prop_table <- prop.table(contingency_table, margin = 1)
+
+print(row_prop_table)
+
+# For column proportions
+col_prop_table <- prop.table(contingency_table, margin = 2)
+
+print(col_prop_table)
+
+```
+```{r}
+ggplot(data = Tot_dataset2, aes(x = age, y = verbal_fluency, group = morethan_children, color = factor(morethan_children))) + # Plot the points with some transparency
+  geom_smooth(method = "lm", se = FALSE, aes(color = factor(morethan_children))) +  # Add separate regression lines for each group
+  scale_color_manual(values = c("blue", "red"), labels = c("Control Group", "Treated Group")) +  # Custom colors for each line
+  labs(title = "Age and Cognitive Score",
+       x = "Age",
+       y = "Verbal Fluency",
+       color = "Number of Children") +  # Label for the legend
+  theme_minimal()
+```
+```{r}
+ggplot(data = Tot_dataset2_final, aes(x = age, y = delayed_recall, group = educ, color = factor(educ))) + 
+  geom_point(method = "lm", se = FALSE) +
+   # Add separate regression lines for each group
+  scale_color_manual(values = c("grey", "red", "green", "blue"))
+
+hist(Tot_dataset2_final$combined_index)
+```
+```{r}
+propoty <- xtabs(~ educ_level + binary_SVF + morethan_children, data = Tot_dataset2)
+
+m <- prop.table(propoty, margin = 3)
+
+print(m)
+
+library(knitr)
+df_table <- as.data.frame(m)
+
+# Use kable from knitr to create a nicely formatted LaTeX table
+kable_output <- kable(df_table, format = "latex", booktabs = TRUE, 
+                      caption = "Proportions Table by Education Level, Binary SVF, and More Than Children")
+
+# Display the LaTeX table
+print(kable_output)
+
+
+```
+
+```{r}
+contingency_table <- table(Tot_dataset2$two_children_same_sex, Tot_dataset2$educ_level)
+print(contingency_table)
+
+table <- table(Tot_dataset2$educ_level, Tot_dataset2$two_children_same_sex)
+chisq.test(table)
+
+
+t.test(Tot_dataset2$educ_level ~ Tot_dataset2$two_children_same_sex)
+```
+```{r}
+t.test(combined_index ~ two_children_same_sex, 
+                        data = Tot_dataset2_final)
+
+t.test(two_children_same_sex ~ morethan_children, 
+                        data = Tot_dataset2_final)
+
+# Assuming Tot_dataset2_final is your dataframe
+Tot_dataset2_final$educ <- factor(Tot_dataset2_final$educ, levels = c("Primary or less", "Secondary", "Tertiary", "Missing"))
+
+Tot_dataset2_final$two_children_same_sex <- factor(Tot_dataset2_final$two_children_same_sex, levels = c(0, 1))
+
+education_table <- table(Tot_dataset2$educ, Tot_dataset2$two_children_same_sex)
+
+# Step 2: Perform the chi-square test
+chi_sq_test <- chisq.test(education_table)
+
+# Step 3: Calculate the differences in proportions
+education_proportions <- prop.table(education_table, margin = 2) # Margin 2 for column proportions
+difference_in_proportions <- education_proportions[,1] - education_proportions[,2]
+difference_in_proportions
+education_proportions 
+
+t.test(educs=="Tertiary education" ~ two_children_same_sex, 
+                        data = Tot_dataset2_final)
+
+
+```
+
+```{r}
+ggplot(data = Tot_dataset2_final, aes(x = age, y = delayed_recall, group = morethan_children, color = factor(morethan_children))) + # Plot the points with some transparency
+  geom_smooth(method = "lm", se = FALSE, aes(color = factor(morethan_children))) +  # Add separate regression lines for each group
+  scale_color_manual(values = c("blue", "red"), labels = c("Control Group", "Treated Group")) +  # Custom colors for each line
+  labs(title = "Age and Cognitive Score",
+       x = "Age",
+       y = "Verbal Fluency",
+       color = "Number of Children") +  # Label for the legend
+  theme_minimal()
+```
+
+```{r}
+install.packages(c("sjPlot", "sjmisc", "sjlabelled"))
+
+library(sjPlot)
+library(sjmisc)
+library(sjlabelled)
+```
+
+```{r}
+library(knitr)
+library(kableExtra)
+
+# Assuming you have the means already calculated
+means <- data.frame(
+  `Mean Score 2 children` = 18.52404,
+  `Mean Score 3 children` = 17.92644
+)
+
+# Transpose to make the groups as rows
+means_t <- t(means)
+
+# Convert to data frame
+means_df <- as.data.frame(means_t)
+
+# Add a column for group names
+means_df$Group <- rownames(means_df)
+rownames(means_df) <- NULL
+
+# Order the columns properly
+means_df <- means_df[, c("Group", "V1")]
+
+# Rename the columns
+colnames(means_df) <- c("Group", "Mean")
+
+# Create a Word-friendly table
+kable_output <- kable(means_df, format = "html", booktabs = TRUE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+
+# Print the table to console for copy-pasting into Word
+kable_output
+
+
+install.packages("kableExtra")
+library(kableExtra)
+
+  
+regression_df <- data.frame(
+  `X` = "three plus children",
+  `Estimate` = 2.2882e-01,
+  `Std. Error` = 5.4779e-02,
+  `t value` = 4.1772,
+  `p-value` = "2.956e-05 ***" 
+)
+
+
+
+regression_df$Pr <- paste0(regression_df$Pr, " **")
+
+# Use kable and kableExtra to create a more spaced-out table
+kable_output <- kable(regression_df, "html", booktabs = TRUE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE) %>%
+  row_spec(0, extra_latex_after = "addlinespace[0.5em]") # Adjust space as needed
+
+# Print the table to console for copy-pasting into Word
+kable_output
+
+writeLines(as.character(kable_output), "regression_table.html")
+
+```
+```{r}
+data <- data.frame(
+  'Group' = c('Different Sex', 'Same Sex'),
+  '2 Children' = c(0.5250870, 0.4749130),
+  'More than 2 Children' = c(0.4639076, 0.5360924)
+)
+
+# Create a table with knitr and format it with kableExtra
+kable_output <- kable(data, format = "html", row.names = FALSE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = F, position = "left") %>%
+  column_spec(1, bold = TRUE, color = "black") %>% # Making the Group column bold
+  column_spec(2, color = "black") %>%
+  column_spec(3, color = "black")
+
+# Print the table to console for copy-pasting into Word
+kable_output
+```
+
+```{r}
+education_data <- data.frame(
+  Education_Level = c("Missing", "Primary or less", "Secondary", "Tertiary education"),
+  `Z=0` = c(0.006662359, 0.322712182, 0.497470978, 0.173154482),
+  `Z=1` = c(0.005146101, 0.320935574, 0.496896879, 0.177021446)
+)
+
+# Create the table with kable and style it with kableExtra
+kable_output <- kable(education_data, format = "html", row.names = FALSE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE) %>%
+  column_spec(1, bold = TRUE) %>%
+  column_spec(2, color = "black") %>%
+  column_spec(3, color = "black")
+
+# Print the table to console for copy-pasting into Word
+kable_output
+```
+
+```{r}
+two_children_same_sex_0 <- data.frame(
+  morethan_children = c(0, 1),
+  `0` = c(0.53641368, 0.36000110),
+  `1` = c(0.05433979, 0.04924543)
+)
+
+two_children_same_sex_1 <- data.frame(
+  morethan_children = c(0, 1),
+  `0` = c(0.48250170, 0.40927260),
+  `1` = c(0.04796737, 0.06025833)
+)
+
+# Combine the data frames and add a new column for 'two_children_same_sex'
+combined_df <- rbind(
+  cbind(two_children_same_sex_0, two_children_same_sex = "0"),
+  cbind(two_children_same_sex_1, two_children_same_sex = "1")
+)
+
+# Use kable and kableExtra to create and style the table
+kable_output <- kable(combined_df, format = "html", row.names = FALSE, align = c('l', 'c', 'c', 'c')) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = F) %>%
+  column_spec(1, bold = TRUE) %>%
+  column_spec(2, bold = TRUE) %>%
+  column_spec(3, color = "black") %>%
+  column_spec(4, color = "black")
+
+# Print the table to console for copy-pasting into Word
+kable_output
+```
+
+```{r}
+regression_output <- data.frame(
+   `X` = "three plus children",
+   Estimate = "2.1680e-01",
+  `Std. Error` = "5.2283e-02",
+  `t value` = "4.1468",
+  `p-value` = "3.376e-05 ***")
+
+# Format the table
+kable_output <- kable(regression_output, format = "html", row.names = FALSE, align = c('l', 'r', 'r', 'r', 'r')) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE) %>%
+  column_spec(1, bold = TRUE) %>%
+  column_spec(2, color = "black") %>%
+  column_spec(3, color = "black") %>%
+  column_spec(4, color = "black") %>%
+  column_spec(5, color = "black")
+
+# Display the formatted table
+kable_output
+```
+
+```{r}
+t_test_results <- data.frame(
+  Item = c(
+            "two children", "Three plus children", "p-value"),
+  Value = c("0.09142327", "0.10752150", "4.589e-10")
+)
+
+# Format the table
+kable_output <- kable(t_test_results, format = "html", row.names = FALSE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE) %>%
+  column_spec(1, bold = TRUE) %>%
+  column_spec(2, color = "black")
+
+# Display the formatted table
+kable_output
+```
+
+```{r}
+regression_output <- data.frame(
+  `Term` = "morethan_children",
+  `Estimate` = 2.2882e-01,
+  `Std. Error` = 5.4779e-02,
+  `t value` = 4.1772,
+  `Pr(>|t|)` = "2.956e-05 ***"
+)
+
+# Transpose the data frame to get terms as columns
+regression_output_t <- as.data.frame(t(regression_output))
+colnames(regression_output_t) <- regression_output_t[1,]
+regression_output_t <- regression_output_t[-1,] # remove the first row that contained old column names
+
+# Format the table with kable and kableExtra
+kable_output <- kable(regression_output_t, format = "html", row.names = FALSE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE) %>%
+  column_spec(1, bold = TRUE, color = "black") 
+
+# Display the formatted table
+kable_output
+```
+

@@ -1,0 +1,175 @@
+---
+title: "MODELS"
+author: "Giovanni Santoru"
+date: "2024-03-02"
+output: html_document
+---
+
+
+```{r}
+library(dplyr)
+library(stats)
+library(lmtest)
+library(sandwich)
+
+Tot_dataset_relevant <- select(Tot_dataset2, delayed_recall, immediate_recall, verbal_fluency)
+pca_result <- prcomp(Tot_dataset_relevant, center = TRUE, scale. = TRUE)
+combined_index <- pca_result$x[, 1]
+
+# Example: Impute missing values with the column mean
+tot_dataset_relevant <- Tot_dataset_relevant %>%
+  mutate(across(everything(), ~ifelse(is.na(.), mean(., na.rm = TRUE), .)))
+
+
+# You can add the cognition index back to your dataset if needed
+Tot_dataset2 <- mutate(Tot_dataset2, combined_index = combined_index)
+
+#Descriptive statistics combined_index
+summary_stats <- summary(combined_index)
+print(summary_stats)
+
+hist(combined_index)
+
+quantiles <- quantile(combined_index, probs = c(0.25, 0.5, 0.75))
+print(quantiles)
+
+
+# Create the box plot
+library(ggplot2)
+
+```
+
+
+```{r}
+#2SLS COMBINED INDEX WITH CONTROLS
+
+library(AER)
+
+sls_est <- ivreg(
+     combined_index ~ morethan_children + cubage + age_2ndchild + gender + Born_abroad + educ + factor(wave_id)*factor(country) | two_children_same_sex + cubage + age_2ndchild + gender + Born_abroad + educ + factor(wave_id)*factor(country),
+     data = Tot_dataset2)
+
+# Compute clustered standard errors
+clustered_se <- vcovHC(sls_est, type = "HC1", cluster = ~ mergeid, data = Tot_dataset2)
+
+# Apply the clustered standard errors to the model
+summary_cl <- coeftest(sls_est, vcov = clustered_se)
+
+# Print the summary with clustered standard errors
+print(summary_cl)
+
+summary(sls_est, vcov = clustered_se, diagnostics = TRUE)
+
+#Confidence intervals
+robust_se <- sqrt(diag(vcovCL(sls_est, cluster = Tot_dataset2$mergeid)))
+
+coefs <- coef(sls_est)
+
+# Calculate the confidence intervals using the normal distribution
+confint_lower <- coefs - qnorm(0.975) * robust_se
+confint_upper <- coefs + qnorm(0.975) * robust_se
+
+# Combine the lower and upper bounds
+confint_robust <- cbind(confint_lower, confint_upper)
+
+# Print the results  robust confidence intervals at individual level.
+print(confint_robust)
+```
+
+
+```{r}
+#LINEAR MODEL OLS
+
+
+# Assuming the wave identifier in your dataset is named 'wave_id'
+Tot_dataset2$wave_id <- as.factor(Tot_dataset2$wave_id)
+Tot_dataset2$country <- as.factor(Tot_dataset2$country)
+
+#OLS 
+lm_fit <- lm(combined_index ~ morethan_children + cubage + age_2ndchild + Born_abroad + gender + educ + factor(wave_id)*factor(country), data = Tot_dataset2)
+
+# Compute cluster-robust standard errors
+robust_se <- vcovHC(lm_fit, type = "HC1", cluster = ~coupleid1, data = Tot_dataset2)
+
+# Apply the robust standard errors to the coefficient tests
+summary_coeftest <- coeftest(lm_fit, robust_se)
+
+# Print the summary
+print(summary_coeftest)
+
+summary(lm_fit)
+summary(lm_fit, vcov = clustered_se, diagnostics = TRUE)
+tab_model(lm_fit, sls_est, dv.labels = c("OLS", "2SLS"))
+tab_model(xt_fluency)
+```
+
+
+```{r}
+#RELEVANCE ASSUMPTION
+
+
+# Run your OLS regression
+relevance <- lm(morethan_children ~ two_children_same_sex + cubage + age_2ndchild + Born_abroad + gender + educ_level + factor(wave_id)*factor(country), data = Tot_dataset2)
+
+# Calculate cluster-robust standard errors at individual level
+robust_se1 <- vcovHC(relevance, type = "HC1", cluster = "mergeid")
+
+# View the summary of the model with robust standard errors
+summary_coeftest <- coeftest(relevance, robust_se1)
+print(summary_coeftest)
+
+summary(summary_coeftest)
+summary(relevance)
+
+```
+
+
+#Overcontrolling: However, one must be cautious not to overcontrol by including variables that are themselves affected by the treatment (mediators), as this would absorb some of the treatment effect and potentially bias the estimate of the treatment effect.
+
+```{r}
+iv_model3 <- ivreg(formula = verbal_fluency ~ morethan_children + cubage + age_2ndchild + Born_abroad + gender + educ_level + factor(wave_id)*factor(country) | two_children_same_sex + cubage + age_2ndchild + gender + Born_abroad + educ_level + factor(wave_id)*factor(country), data = Tot_dataset2)
+
+summary(iv_model3, diagnostics = TRUE)
+
+
+```
+```{r}
+#MONOTONICITY TESTING
+
+# Check the average treatment (having a third child) for each level of the instrument (sex composition of the first two children)
+library(dplyr)
+
+average_treatment <- Tot_dataset2 %>%
+  group_by(two_children_same_sex) %>%
+  summarize(average_three_kids = mean(morethan_children))
+
+# Output the result
+print(average_treatment)
+
+# You can also conduct a difference-in-means test to see if the difference is statistically significant
+t.test(morethan_children ~ two_children_same_sex, data = Tot_dataset2)
+
+t.test(number_children ~ two_children_same_sex, data = Tot_dataset2)
+
+#Alternative 
+reatment_proportions <- Tot_dataset2 %>%
+  group_by(two_children_same_sex) %>%
+  summarize(Proportion_Treated = mean(morethan_children))
+
+# Print the results
+print(reatment_proportions)
+
+# You might also want to perform a statistical test to see if the difference is significant
+# For instance, using a chi-squared test if T and Z are both binary
+chi_squared_test_result <- chisq.test(table(Tot_dataset2$two_children_same_sex, Tot_dataset2$morethan_children))
+
+# Print the test result
+print(chi_squared_test_result)
+```
+
+```{r}
+iv_modeldelayed<- ivreg(formula = delayed_recall ~ morethan_children + cubage + age_2ndchild + Born_abroad + gender + educ_level + factor(wave_id)*factor(country) | two_children_same_sex + cubage + age_2ndchild + gender + Born_abroad + educ_level + factor(wave_id)*factor(country), data = Tot_dataset2)
+
+summary(iv_modeldelayed, diagnostics = TRUE)
+```
+

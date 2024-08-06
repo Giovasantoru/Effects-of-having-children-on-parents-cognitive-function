@@ -1,0 +1,280 @@
+---
+title: "Modelli tot dataset"
+author: "Giovanni Santoru"
+date: "2024-03-23"
+output: html_document
+---
+
+```{r}
+
+library(tidyverse)
+
+normalized_data <- Tot_dataset2_final %>%
+  select(verbal_fluency, delayed_recall, immediate_recall) %>%
+  scale()
+
+pca_result <- prcomp(normalized_data, center = FALSE, scale. = FALSE)
+
+Tot_dataset2_final$combined_index <- pca_result$x[, 1]
+
+
+cognitive_tasks <- Tot_dataset2_final[, c("verbal_fluency", "delayed_recall", "immediate_recall")]
+
+# Normalize the scores
+normalized_scores <- scale(cognitive_tasks)
+
+# Perform PCA
+pca_result <- prcomp(normalized_scores)
+
+# Add the first principal component as a new column in your dataframe
+Tot_dataset2_final$combined_index <- pca_result$x[, 1]
+
+
+Tot_dataset_relevant <- select(Tot_dataset2_final, delayed_recall, immediate_recall, verbal_fluency)
+pca_result <- prcomp(Tot_dataset_relevant, center = TRUE, scale. = TRUE)
+combined_index <- pca_result$x[, 1]
+
+# Example: Impute missing values with the column mean
+tot_dataset_relevant <- Tot_dataset_relevant %>%
+  mutate(across(everything(), ~ifelse(is.na(.), mean(., na.rm = TRUE), .)))
+
+
+# You can add the cognition index back to your dataset if needed
+Tot_dataset2_final <- mutate(Tot_dataset2_final, combined_index = combined_index)
+
+Tot_dataset2_final$wave_id <- as.factor(Tot_dataset2_final$wave_id)
+Tot_dataset2_final$country <- as.factor(Tot_dataset2_final$country)
+```
+
+
+```{r}
+library(AER)
+
+
+sls_est <- ivreg(
+     combined_index ~ morethan_children + cubage + age_2ndchild + gender + Born_abroad + educ + factor(wave_id)*factor(country) | two_children_same_sex + cubage + age_2ndchild + gender + Born_abroad + educ + factor(wave_id)*factor(country),
+     data = Tot_dataset2_final)
+
+# Compute clustered standard errors
+clustered_se <- vcovHC(sls_est, type = "HC1", cluster = ~ coupleid1, data = Tot_dataset2_final)
+
+# Apply the clustered standard errors to the model
+summary_cl <- coeftest(sls_est, vcov = clustered_se)
+
+# Print the summary with clustered standard errors
+print(summary_cl)
+
+summary(sls_est, vcov = clustered_se, diagnostics = TRUE)
+```
+
+
+```{r}
+
+quantiles <- quantile(Tot_dataset2_final$combined_index, probs = c(0.25, 0.5, 0.75))
+print(quantiles)
+
+binary_outcome <- ifelse(combined_index < -1.0020102, 1, 0)
+
+Tot_dataset2 <- mutate(Tot_dataset2_final, binary_outcome = binary_outcome)
+```
+
+```{r}
+xt <- xtabs(~ morethan_children + binary_outcome + two_children_same_sex, data = Tot_dataset2_final)
+
+p <- prop.table(xt, margin = 3)
+
+print(p)
+
+```
+
+```{r}
+bpres <- bpbounds(p)
+sbp = summary(bpres)
+print(sbp)
+```
+
+```{r}
+binary_SVF <- ifelse(Tot_dataset2_final$verbal_fluency < 10, 1, 0)
+
+Tot_dataset2_final <- mutate(Tot_dataset2_final, binary_SVF = binary_SVF)
+
+xt_fluency <- xtabs(~ morethan_children + binary_SVF + two_children_same_sex, data = Tot_dataset2_final)
+
+o <- prop.table(xt_fluency, margin = 3)
+
+hist(Tot_dataset2_final$verbal_fluency)
+
+print(o)
+
+library(bpbounds)
+
+opres <- bpbounds(o)
+sop = summary(opres)
+print(sop)
+
+iv_model2 <- ivreg(formula = binary_SVF ~ morethan_children + cubage + age_2ndchild + Born_abroad + gender + educ + factor(wave_id)*factor(country) | two_children_same_sex + cubage + age_2ndchild + gender + Born_abroad + educ + factor(wave_id)*factor(country), data = Tot_dataset2_final)
+
+
+clustered_se <- vcovHC(iv_model2, type = "HC1", cluster = ~ coupleid1, data = Tot_dataset2_final)
+
+# Apply the clustered standard errors to the model
+summary_cl <- coeftest(iv_model2, vcov = clustered_se)
+
+# Print the summary with clustered standard errors
+print(summary_cl)
+
+tab_model(iv_model2)
+
+summary(iv_model2)
+```
+
+
+```{r}
+Immediate_AD <- ifelse(Tot_dataset2_final$immediate_recall < 3, 1, 0)
+Tot_dataset2_final <- mutate(Tot_dataset2_final, Immediate_AD = Immediate_AD)
+
+xt_Immediate <- xtabs(~ morethan_children + Immediate_AD + two_children_same_sex, data = Tot_dataset2_final)
+
+ad <- prop.table(xt_Immediate, margin = 3)
+
+print(ad)
+
+hist(Tot_dataset2_final$immediate_recall)
+ggplot(Tot_dataset2_final, aes(x=immediate_recall)) + 
+  geom_histogram(binwidth=1, colour="black", fill="grey") +
+  theme_minimal()
+
+#CALCULATING BOUNDS
+
+adpres <- bpbounds(ad)
+sad = summary(adpres)
+print(sad)
+
+iv_model <- ivreg(formula = immediate_recall ~ morethan_children + cubage + age_2ndchild + Born_abroad + gender + educ + factor(wave_id)*factor(country) | two_children_same_sex + cubage + age_2ndchild + gender + Born_abroad + educ + factor(wave_id)*factor(country), data = Tot_dataset2_final)
+
+iv_model <- ivreg(formula = Immediate_AD ~ morethan_children + cubage + age_2ndchild + Born_abroad + gender + educ + factor(wave_id)*factor(country) | two_children_same_sex + cubage + age_2ndchild + gender + Born_abroad + educ + factor(wave_id)*factor(country), data = Tot_dataset2_final)
+
+
+clustered_se <- vcovHC(iv_model, type = "HC1", cluster = ~ coupleid1, data = Tot_dataset2_final)
+
+# Apply the clustered standard errors to the model
+summary_cl <- coeftest(iv_model, vcov = clustered_se)
+
+# Print the summary with clustered standard errors
+print(summary_cl)
+
+summary(iv_model, vcov = clustered_se, diagnostics = TRUE)
+
+quantiles(Tot_dataset2_final$immediate_recall)
+quartiles <- quantile(Tot_dataset2_final$immediate_recall, probs = c(0.25, 0.5, 0.75))
+```
+
+```{r}
+delayed_AD <- ifelse(Tot_dataset2_final$delayed_recall < 4, 1, 0)
+Tot_dataset2_final <- mutate(Tot_dataset2_final, delayed_AD = delayed_AD)
+
+hist(Tot_dataset2_final$delayed_recall)
+ggplot(Tot_dataset2_final, aes(x=delayed_recall)) + 
+  geom_histogram(binwidth=1, colour="black", fill="grey") +
+  theme_minimal()
+
+xt_AD <- xtabs(~ morethan_children + delayed_AD + two_children_same_sex, data = Tot_dataset2)
+
+ad <- prop.table(xt_AD, margin = 3)
+
+print(ad)
+
+
+#CALCULATING BOUNDS
+
+adpres <- bpbounds(ad)
+sad = summary(adpres)
+print(sad)
+
+update.packages()
+# Simplified model with fewer variables
+
+
+#2SLS AD
+
+iv_modelAD <- ivreg(formula = delayed_AD ~ morethan_children + cubage + age_2ndchild + Born_abroad + gender + educ + factor(wave_id)*factor(country) | two_children_same_sex + cubage + age_2ndchild + gender + Born_abroad + educ + factor(wave_id)*factor(country), data = Tot_dataset2_final)
+
+iv_model <- ivreg(formula = delayed_recall ~ morethan_children + cubage + age_2ndchild + Born_abroad + gender + educ + factor(wave_id)*factor(country) | two_children_same_sex + cubage + age_2ndchild + gender + Born_abroad + educ + factor(wave_id)*factor(country), data = Tot_dataset2_final)
+
+clustered_se <- vcovHC(iv_modelAD, type = "HC1", cluster = ~ coupleid1, data = Tot_dataset2_final)
+
+# Apply the clustered standard errors to the model
+summary_cl <- coeftest(iv_modelAD, vcov = clustered_se)
+
+# Print the summary with clustered standard errors
+print(summary_cl)
+
+summary(iv_modelAD, vcov = clustered_se, diagnostics = TRUE)
+```
+
+
+
+```{r}
+#RELEVANCE
+
+relevance <- lm(morethan_children ~ two_children_same_sex + age_2ndchild + cubage + Born_abroad + gender + educ + factor(wave_id)*factor(country), data = Tot_dataset2_final)
+
+# Calculate cluster-robust standard errors at individual level
+robust_se1 <- vcovHC(relevance, type = "HC1", cluster = "coupleid1")
+
+# View the summary of the model with robust standard errors
+summary_coeftest <- coeftest(relevance, robust_se1)
+print(summary_coeftest)
+
+#LOGIT
+
+logit_model <- glm(morethan_children ~ two_children_same_sex + age_2ndchild + cubage + Born_abroad + gender + educ + factor(wave_id)*factor(country), family = binomial(link = "logit"), data = Tot_dataset2_final)
+
+summary(logit_model, vcov = robust_se1, diagnostics = TRUE)
+
+exp(2.741e-01)
+```
+
+```{r}
+#MONOTONICITY
+
+library(dplyr)
+
+average_treatment <- Tot_dataset2_final %>%
+  group_by(two_children_same_sex) %>%
+  summarize(three_plus_children  = mean(morethan_children))
+
+# Output the result
+print(average_treatment)
+
+# You can also conduct a difference-in-means test to see if the difference is statistically significant
+t.test(morethan_children ~ two_children_same_sex, data = Tot_dataset2_final)
+
+ttest <- t.test(number_children ~ two_children_same_sex, data = Tot_dataset2_final)
+
+tab_model(ttest)
+```
+
+
+```{r}
+#LINEAR MODEL OLS
+
+
+# Assuming the wave identifier in your dataset is named 'wave_id'
+Tot_dataset2_final$wave_id <- as.factor(Tot_dataset2_final$wave_id)
+Tot_dataset2_final$country <- as.factor(Tot_dataset2_final$country)
+
+#OLS 
+lm_fit <- lm(combined_index ~ morethan_children + cubage + age_2ndchild + Born_abroad + gender + educ + factor(wave_id)*factor(country), data = Tot_dataset2_final)
+
+# Compute cluster-robust standard errors
+robust_se <- vcovHC(lm_fit, type = "HC1", cluster = ~ coupleid1, data = Tot_dataset2_final)
+
+# Apply the robust standard errors to the coefficient tests
+summary_coeftest <- coeftest(lm_fit, robust_se)
+
+# Print the summary
+print(summary_coeftest)
+```
+
+

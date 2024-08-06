@@ -1,0 +1,373 @@
+---
+title: "Non-parametric Bounds"
+author: "Giovanni Santoru"
+date: "2024-03-07"
+output: html_document
+---
+
+```{r}
+install.packages(bpbounds)
+library(bpbounds)
+library(tidyr)
+library(dplyr)
+```
+
+```{r}
+# Dichotomize the INDEX
+
+median_value <- median(combined_index)
+
+
+binary_outcome <- ifelse(combined_index > median_value, 1, 0)
+
+Tot_dataset2 <- mutate(Tot_dataset2, binary_outcome = binary_outcome)
+```
+
+```{r}
+xt <- xtabs(~ morethan_children + binary_outcome + two_children_same_sex, data = Tot_dataset2)
+
+p <- prop.table(xt, margin = 3)
+
+print(p)
+```
+
+```{r}
+bpres <- bpbounds(p)
+sbp = summary(bpres)
+print(sbp)
+
+#The output indicates that there is significant uncertainty about the effects of treatment—the bounds are wide, and for ACE, they include both negative and positive values, implying that more precise methods or additional information are needed to pinpoint the causal effect. The CRR also has a wide range, which suggests a need for cautious interpretation; the treatment could either decrease or increase the risk of the outcome.
+#For this reason we proceed calculating the bounds for the single cognitive tests. For this task we should design cutoff points to divide a positive and a negative score *guarda paper spagnolo*. We justify our value choice...
+```
+
+```{r}
+more_than_two_child <- Tot_dataset2 %>% 
+  filter(morethan_children == 1)
+
+# Get the distribution of the number_children variable
+distribution <- table(more_than_two_child$number_children)
+
+# Print the distribution
+print(distribution)
+
+barplot(distribution)
+
+# Perform t-test to compare combined_index for number_children == 2 and number_children == 3
+t_test_two_three <- t.test(combined_index ~ number_children, 
+                        data = Tot_dataset2[Tot_dataset2$number_children %in% c(2, 3),], 
+                        subset = number_children %in% c(2, 3))
+
+# Print the results of the t-test
+print(t_test_two_three)
+
+mean_two_children <- Tot_dataset2 %>%
+  filter(number_children == 2) %>%
+  summarise(mean_combined_index = mean(combined_index, na.rm = TRUE))
+
+# Calculate mean combined_index for number_children == 3
+mean_three_children <- Tot_dataset2 %>%
+  filter(number_children == 3) %>%
+  summarise(mean_combined_index = mean(combined_index, na.rm = TRUE))
+
+print(mean_two_children)
+print(mean_three_children)
+```
+
+```{r}
+#Bounds of Verbal Fluency
+
+summary_stats_fluency <- summary(Tot_dataset2$verbal_fluency)
+print(summary_stats_fluency)
+
+hist(Tot_dataset2$verbal_fluency)
+
+quantiles <- quantile(Tot_dataset2$verbal_fluency, probs = c(0.25, 0.5, 0.75))
+print(quantiles)
+
+binary_SVF <- ifelse(Tot_dataset2$verbal_fluency < 10, 1, 0)
+
+Tot_dataset2 <- mutate(Tot_dataset2, binary_SVF = binary_SVF)
+```
+
+
+```{r}
+#CALCULATING JOINT PROBABILITY P(Y,X|Z)
+
+xt_fluency <- xtabs(~ morethan_children + binary_SVF + two_children_same_sex, data = Tot_dataset2)
+
+o <- prop.table(xt_fluency, margin = 3)
+
+print(o)
+```
+
+```{r}
+#CALCULATING BOUNDS VERBAL FLUENCY
+
+opres <- bpbounds(o)
+sop = summary(opres)
+print(sop)
+```
+
+```{r}
+#CALCULATING THE BOUNDS MANUALLY WITH MONOTONICITY ASSUMPTION
+
+# Let's suppose you have defined your probabilities as follows:
+p00_0 <- 0.53641368  # P(Y=0, X=0|Z=0)
+p01_0 <- 0.36000110  # P(Y=0, X=1|Z=0)
+p10_0 <- 0.05433979  # P(Y=1, X=0|Z=0)
+p11_0 <- 0.04924543  # P(Y=1, X=1|Z=0)
+
+p00_1 <- 0.48250170  # P(Y=0, X=0|Z=1)
+p01_1 <- 0.40927260  # P(Y=0, X=1|Z=1)
+p10_1 <- 0.04796737  # P(Y=1, X=0|Z=1)
+p11_1 <- 0.06025833  # P(Y=1, X=1|Z=1)
+
+# Applying the bounds formula considering the monotonicity assumption:
+lower_bound <- p00_0 - p00_1 - p01_1 - p10_1
+upper_bound <- p00_0 + p01_0 + p11_0 - p01_1
+
+# Print the calculated bounds
+cat("Lower Bound for ACE:", lower_bound, "\n")
+cat("Upper Bound for ACE:", upper_bound, "\n")
+
+```
+
+
+```{r}
+#CALCULATING ACE MANUALLY
+
+covyz = cov(Tot_dataset2$binary_SVF, Tot_dataset2$two_children_same_sex)
+
+covxz = cov(Tot_dataset2$morethan_children, Tot_dataset2$two_children_same_sex)
+
+ace = covyz / covxz
+ace
+```
+```{r}
+
+confint(iv_model)
+#The interval shows the range of values within which the true effect is likely to fall with 95% certainty, assuming the instrument is valid and the model is correctly specified. The confidence interval for the effect of morethan_children suggests that the true effect of having more than two child on the probability of a verbal fluency score indicating cognitive impairment is between 0.36% and 14.37%, with 95% confidence.
+
+library(AER)
+library(sandwich)
+
+# Fit the IV model
+iv_model <- ivreg(formula = binary_SVF ~ morethan_children | two_children_same_sex, data = Tot_dataset2)
+summary(iv_model, diagnostics = TRUE)
+
+# Calculate cluster-robust standard errors
+# 'cluster_variable' should be replaced by the name of the variable that defines the clusters in your data
+robust_se <- sqrt(diag(vcovCL(iv_model, cluster = Tot_dataset2$mergeid)))
+
+# Get the coefficient estimates
+coefs <- coef(iv_model)
+
+# Calculate the confidence intervals using the normal distribution
+confint_lower <- coefs - qnorm(0.975) * robust_se
+confint_upper <- coefs + qnorm(0.975) * robust_se
+
+# Combine the lower and upper bounds
+confint_robust <- cbind(confint_lower, confint_upper)
+
+# Print the results
+print(confint_robust)
+
+#The results indicate the confidence intervals calculated with cluster-robust standard errors at the individual level.This interval for the effect of having more than one child on the probability of verbal fluency score indicating cognitive impairment includes zero, which suggests that the effect might not be statistically significant at the 95% confidence level when accounting for clustering. The effect could be as low as a 1.02% decrease in probability or as high as a 15.74% increase of cognitive impairment.  
+
+iv_model2 <- ivreg(formula = binary_SVF ~ morethan_children + cubage + age_2ndchild + Born_abroad + gender + educ_level + factor(wave_id)*factor(country) | two_children_same_sex + cubage + age_2ndchild + gender + Born_abroad + educ_level + factor(wave_id)*factor(country), data = Tot_dataset2)
+
+diagnostic_stats <- summary(iv_model2, diagnostics = TRUE)
+
+print(coeftest_summary)
+
+# Calculate cluster-robust standard errors
+
+robust_se <- sqrt(diag(vcovCL(iv_model2, cluster = Tot_dataset2$mergeid)))
+print(robust_se)
+
+# Get the coefficient estimates
+coefs2 <- coef(iv_model2)
+
+# Calculate the confidence intervals using the normal distribution
+confint_lower <- coefs2 - qnorm(0.975) * robust_se
+confint_upper <- coefs2 + qnorm(0.975) * robust_se
+
+# Combine the lower and upper bounds
+confint_robust2 <- cbind(confint_lower, confint_upper)
+
+# Print the results  robust confidence intervals at individual level.
+print(confint_robust2)
+#This interval suggests that having more than one child increases the probability of the outcome (binary verbal fluency score indicating cognitive impairment) by between 0.35% and 18.46%, with 95% confidence, when controlling for clustering at the individual level.
+
+
+#Weak Instruments Test: 
+Statistic: 274.504
+p-value: <2e-16
+#This test checks whether the instrument has a strong correlation with the endogenous variable. A large test statistic and a p-value less than any conventional significance level (indicated by ***), suggests that the instrument is not weak and is indeed strongly correlated with the endogenous regressor, which is good for IV estimation.
+Wu-Hausman Test:
+
+Statistic: 4.896
+p-value: 0.0269
+The Wu-Hausman test compares the OLS estimates with the IV estimates. A significant p-value (indicated by *) suggests that the OLS estimates are inconsistent due to endogeneity, and the IV estimates are preferred. The result implies that the endogenous regressor (morethan_children) is likely endogenous, and the instrument is valid and relevant.
+
+robust_se1 <- vcovHC(iv_model2, type = "HC1", cluster = "mergeid")
+
+# View the summary of the model with robust standard errors
+summary_coeftest <- coeftest(iv_model2, robust_se1)
+print(summary_coeftest)
+
+exp(9.8607e-02)
+```
+
+```{r}
+t_test_two_three <- t.test(binary_SVF ~ number_children, 
+                        data = Tot_dataset2[Tot_dataset2$number_children %in% c(2, 3),], 
+                        subset = number_children %in% c(2, 3))
+
+# Print the results of the t-test
+print(t_test_two_three )
+```
+
+
+```{r}
+#DELAYED RECALL
+
+#Creating a binary variable for immediate recall for Mild Cognitive Impairment
+
+delayed_MCI <- ifelse(Tot_dataset2$delayed_recall < 7, 1, 0)
+
+Tot_dataset2 <- mutate(Tot_dataset2, delayed_MCI = delayed_MCI)
+
+
+xt_MCI <- xtabs(~ morethan_children + delayed_MCI + two_children_same_sex, data = Tot_dataset2)
+
+o <- prop.table(xt_MCI, margin = 3)
+
+print(o)
+
+
+#CALCULATING BOUNDS
+
+bpres <- bpbounds(o)
+sop = summary(bpres)
+print(sop)
+
+
+#2SLS
+iv_modelMCI <- ivreg(formula = delayed_MCI ~ morethan_children + cubage + age_2ndchild + Born_abroad + gender + educ_level + factor(wave_id)*factor(country) | two_children_same_sex + cubage + age_2ndchild + gender + Born_abroad + educ_level + factor(wave_id)*factor(country), data = Tot_dataset2)
+
+summary(iv_modelMCI, diagnostics = TRUE)
+
+
+# Calculate cluster-robust standard errors
+
+robust_se <- sqrt(diag(vcovCL(iv_modelMCI, cluster = Tot_dataset2$mergeid)))
+print(robust_se)
+```
+```{r}
+#Binary for AD
+
+delayed_AD <- ifelse(Tot_dataset2_final$delayed_recall < 5, 1, 0)
+Tot_dataset2_final <- mutate(Tot_dataset2_final, delayed_AD = delayed_AD)
+
+hist(Tot_dataset2_final$delayed_recall)
+
+xt_AD <- xtabs(~ morethan_children + delayed_AD + two_children_same_sex, data = Tot_dataset2_final)
+
+ad <- prop.table(xt_AD, margin = 3)
+
+print(ad)
+
+
+#CALCULATING BOUNDS
+
+adpres <- bpbounds(ad)
+sad = summary(adpres)
+print(sad)
+
+#2SLS AD
+
+iv_modelAD <- ivreg(formula = delayed_AD ~ morethan_children + cubage + age_2ndchild + Born_abroad + gender + educ_level + factor(wave_id)*factor(country) | two_children_same_sex + cubage + age_2ndchild + gender + Born_abroad + educ_level + factor(wave_id)*factor(country), data = Tot_dataset2_final)
+
+summary(iv_modelAD, diagnostics = TRUE)
+
+
+# Calculate cluster-robust standard errors
+
+robust_se <- sqrt(diag(vcovCL(iv_modelAD, cluster = Tot_dataset2_final$mergeid)))
+print(robust_se)
+```
+
+```{r}
+#IMMEDIATE RECALL
+
+summary_stats_immediate <- summary(Tot_dataset2$immediate_recall)
+print(summary_stats_immediate)
+
+hist(Tot_dataset2$immediate_recall)
+hist(Tot_dataset2$immediate_recall, breaks = 10, col = "gray", border = "white")
+
+
+quantiles <- quantile(Tot_dataset2$immediate_recall, probs = c(0.25, 0.5, 0.75))
+print(quantiles)
+
+Immediate_AD <- ifelse(Tot_dataset2_final$immediate_recall < 4, 1, 0)
+Tot_dataset2_final <- mutate(Tot_dataset2_final, Immediate_AD = Immediate_AD)
+
+xt_Immediate <- xtabs(~ morethan_children + Immediate_AD + two_children_same_sex, data = Tot_dataset2)
+
+ad <- prop.table(xt_Immediate, margin = 3)
+
+print(ad)
+
+
+#CALCULATING BOUNDS
+
+adpres <- bpbounds(ad)
+sad = summary(adpres)
+print(sad)
+
+#2SLS AD
+
+iv_model_imm <- ivreg(formula = Immediate_AD ~ morethan_children + cubage + age_2ndchild + Born_abroad + gender + educ + factor(wave_id)*factor(country) | two_children_same_sex + cubage + age_2ndchild + gender + Born_abroad + educ + factor(wave_id)*factor(country), data = Tot_dataset2_final)
+
+# Compute cluster-robust standard errors
+robust_se <- vcovHC(iv_model_imm, type = "HC1", cluster = ~coupleid1, data = Tot_dataset2_final)
+
+summary_coeftest <- coeftest(iv_model_imm, robust_se)
+print(summary_coeftest)
+
+#OLS
+lm_fit_imm <- lm(Immediate_AD ~ morethan_children + cubage + age_2ndchild + Born_abroad + gender + educ_level + factor(wave_id)*factor(country), data = Tot_dataset2)
+
+
+summary(iv_model_imm, diagnostics = TRUE)
+
+
+
+library(AER)
+library(sandwich)
+library(lmtest)
+
+
+
+# Second stage: Logistic regression with the treatment and its residuals
+logit_model <- glm(Immediate_AD ~ morethan_children + cubage + age_2ndchild + gender + Born_abroad + educ_level + factor(wave_id)*factor(country), family = binomial(link = "logit"), data = Tot_dataset2)
+
+summary(logit_model, diagnostics = TRUE)
+
+install.packages("margins")
+library(margins)
+
+# Assuming `logit_model` is your fitted glm model for logistic regression
+# Calculate the marginal effects
+marginal_effects <- margins(logit_model)
+
+# Summarize the marginal effects
+summary(marginal_effects)
+
+```
+
+
+
+
