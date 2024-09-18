@@ -31,7 +31,8 @@ library(tidyr)
 library(stats)
 library(bpbounds)
 
-Code Workflow
+# Code Workflow
+
 Below is an outline of the workflow for processing and analyzing the dataset:
 
 Reading and Preparing Data:
@@ -48,11 +49,27 @@ The impact of multiple children on cognitive decline is estimated using 2SLS mod
 Non-Parametric Bounds:
 Pearl’s non-parametric bounds technique is applied to refine the causal estimates.
 
+# Key Techniques:
+Merging Data: I used a combination of inner joins and left joins to merge the various datasets, ensuring that the most complete data was retained:
+
+Inner joins were used to merge core datasets with complete cases.
+Left joins were applied when I wanted to retain observations that might have some missing values in certain variables.
+Handling Missing Data: I utilized the coalesce() function to fill missing values with alternative available data across similar columns where applicable. This helped create a more robust dataset without introducing biases due to missing information.
+
+Concatenation: To create the final dataset, I concatenated multiple dataframes across waves, allowing for a longitudinal analysis of cognitive decline over time.
+
+Statistical Analysis
+Once the final dataset was created, I conducted the following analyses:
+
+Principal Component Analysis (PCA): To create a cognitive index by combining the three cognitive task scores into one measure.
+Instrumental Variable (IV) Regression: Using child gender composition as an instrument, I examined the causal impact of family structure on cognitive outcomes.
+Chi-square Tests: To test associations between education level and family composition.
+
 # Key Findings and Results
 Cognitive Scores and Family Size: The analysis found that the number of children in a family and their sex composition have a statistically significant effect on cognitive outcomes, particularly for verbal fluency and immediate recall.
 Education Impact: Education level also plays a critical role in determining cognitive performance.
 Instrumental Variables Estimation: The IV model confirms the importance of exogenous variation (e.g., sex composition of children) in identifying the causal effect of having more children on cognitive outcomes.
 
-Next Steps
+# Next Steps
 Further Model Validation: Validate the IV results with alternative instruments and robustness checks.
 Policy Implications: Explore the broader social and policy implications of the results, particularly in relation to family planning and cognitive health interventions.
