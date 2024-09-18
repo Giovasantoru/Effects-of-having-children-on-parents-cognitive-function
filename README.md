@@ -1,6 +1,7 @@
 # Effects-of-having-children-on-parents-cognitive-function
 
-roject Overview
+Project Overview
+
 This project replicates the dataset used in the research by Bonsang et al., which examines the impact of childbearing on cognitive decline in older adults. The data is derived from multiple waves of the Survey of Health, Ageing and Retirement in Europe (SHARE), specifically waves 1, 2, 4, 5, 6, and 8. The final dataset includes 92,748 observations. Using a two-stage least squares (2SLS) model and Pearl’s non-parametric bounds, we estimate the causal effect of having many children on cognitive performance. Additionally, a Principal Component Analysis (PCA) is employed to create a cognitive score index.
 
 Project Structure
