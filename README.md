@@ -51,3 +51,6 @@ Pearl’s non-parametric bounds technique is applied to refine the causal estima
 Cognitive Scores and Family Size: The analysis found that the number of children in a family and their sex composition have a statistically significant effect on cognitive outcomes, particularly for verbal fluency and immediate recall.
 Education Impact: Education level also plays a critical role in determining cognitive performance.
 Instrumental Variables Estimation: The IV model confirms the importance of exogenous variation (e.g., sex composition of children) in identifying the causal effect of having more children on cognitive outcomes.
+
+
+C
