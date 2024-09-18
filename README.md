@@ -8,7 +8,9 @@ Project Structure
 The analysis is conducted across several R script files:
 
 Modelli dataset final.Rdm – Contains the statistical models and analyses.
+
 database wave 8.Rdm – Prepares and processes the dataset for the analysis.
+
 Descriptive Statistic.Rdm – Visualizes and describes the dataset with various graphs and tables.
 
 Dataset Waves
