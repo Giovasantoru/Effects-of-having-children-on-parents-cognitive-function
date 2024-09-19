@@ -60,7 +60,7 @@ Handling Missing Data: I utilized the coalesce() function to fill missing values
 
 Concatenation: To create the final dataset, I concatenated multiple dataframes across waves, allowing for a longitudinal analysis of cognitive decline over time.
 
-Statistical Analysis
+# Statistical Analysis
 Once the final dataset was created, I conducted the following analyses:
 
 Principal Component Analysis (PCA): To create a cognitive index by combining the three cognitive task scores into one measure.
